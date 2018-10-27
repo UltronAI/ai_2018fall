@@ -8,7 +8,7 @@
 ### Homework 1
 
 #### part1
-* [ x ] svm
+* [x] svm
 
 #### part2
 * [ ] fully connected nets
