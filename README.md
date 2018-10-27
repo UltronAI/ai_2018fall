@@ -1,19 +1,20 @@
 # ai_2018fall
-Artificial Intelligence: Principles and Techniques
-Advised by Assistant Prof. Chongjie Liu, IIIS
+*Artificial Intelligence: Principles and Techniques*
+
+*Advised by Assistant Prof. Chongjie Liu, IIIS*
 
 ## Homeworks
 
 ### Homework 1
 
 #### part1
-[x] svm
+* [x] svm
 
 #### part2
-[] fully connected nets
-[] cnn
-[] tensorflow / pytorch
+* [] fully connected nets
+* [] cnn
+* [] tensorflow / pytorch
 
 #### part3
-[] image captioning with vanilla rnns
-[] image captioning with lstms
+* [] image captioning with vanilla rnns
+* [] image captioning with lstms
