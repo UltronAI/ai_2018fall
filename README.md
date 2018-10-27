@@ -5,16 +5,9 @@
 
 ## Homeworks
 
-### Homework 1
+#### Homework 1
 
-#### part1
-* [x] svm
-
-#### part2
-* [ ] fully connected nets
-* [ ] cnn
-* [ ] tensorflow / pytorch
-
-#### part3
-* [ ] image captioning with vanilla rnns
-* [ ] image captioning with lstms
+| part 1 | [x] svm |
+|:------:|:-------:|
+| part 2 | [ ] fc [ ] cnn [ ] tf/pytorch |
+| part 3 | [ ] vanilla rnn [ ] lstm |
