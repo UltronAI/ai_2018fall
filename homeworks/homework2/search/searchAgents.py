@@ -478,18 +478,13 @@ def foodHeuristic(state, problem):
     """
     position, foodGrid = state
     "*** YOUR CODE HERE ***"
-
     current_state = position
     remaining_food = foodGrid.deepCopy().asList()
 
-    h = 0
-    while len(remaining_food) > 0:
-        d, food_state = min([(mazeDistance(current_state, food, problem.startingGameState), food) for food in remaining_food], key=lambda x: x[0])
-        remaining_food.remove(food_state)
-        h += d
-        current_state = food_state
+    if not remaining_food:
+        return 0
 
-    return h
+    return max(findShortestPath(position, i, problem) for i in remaining_food)
 
 class ClosestDotSearchAgent(SearchAgent):
     "Search for all food using a sequence of searches"
@@ -558,6 +553,11 @@ class AnyFoodSearchProblem(PositionSearchProblem):
         "*** YOUR CODE HERE ***"
         return self.food[x][y]
 
+def findShortestPath(start, goal, problem):
+    # print "searching shortest path"
+    new_problem = PositionSearchProblem(problem.startingGameState, start = start, goal = goal, warn = False)
+    return len(search.astar(new_problem, heuristic = manhattanHeuristic))
+
 def mazeDistance(point1, point2, gameState):
     """
     Returns the maze distance between any two points, using the search functions
@@ -574,4 +574,4 @@ def mazeDistance(point1, point2, gameState):
     assert not walls[x1][y1], 'point1 is a wall: ' + str(point1)
     assert not walls[x2][y2], 'point2 is a wall: ' + str(point2)
     prob = PositionSearchProblem(gameState, start=point1, goal=point2, warn=False, visualize=False)
-    return len(search.astar(prob, heuristic=manhattanHeuristic))
+    return len(search.bfs(prob))

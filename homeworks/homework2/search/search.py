@@ -90,10 +90,6 @@ def depthFirstSearch(problem):
     visited = set()
     stack = util.Stack()
     stack.push((problem.getStartState(), []))
-    
-    print "Start:", problem.getStartState()
-    print "Is the start a goal?", problem.isGoalState(problem.getStartState())
-    print "Start's successors:", problem.getSuccessors(problem.getStartState())
 
     while not stack.isEmpty():
         state, actions = stack.pop()
@@ -151,7 +147,7 @@ def uniformCostSearch(problem):
         
         for successor, action, step_cost in problem.getSuccessors(state):
             if successor not in visited:
-                queue.push((successor, actions + [action]), step_cost)
+                queue.push((successor, actions + [action]), step_cost + problem.getCostOfActions(actions))
 
 def nullHeuristic(state, problem=None):
     """
@@ -179,7 +175,7 @@ def aStarSearch(problem, heuristic=nullHeuristic):
 
         for successor, action, step_cost in problem.getSuccessors(state):
             if successor not in visited:
-                queue.push((successor, actions + [action]), step_cost + heuristic(successor, problem))
+                queue.push((successor, actions + [action]), step_cost + problem.getCostOfActions(actions) + heuristic(successor, problem))
 
 
 # Abbreviations
