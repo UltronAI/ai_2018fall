@@ -554,7 +554,6 @@ class AnyFoodSearchProblem(PositionSearchProblem):
         return self.food[x][y]
 
 def findShortestPath(start, goal, problem):
-    # print "searching shortest path"
     new_problem = PositionSearchProblem(problem.startingGameState, start = start, goal = goal, warn = False)
     return len(search.astar(new_problem, heuristic = manhattanHeuristic))
 
