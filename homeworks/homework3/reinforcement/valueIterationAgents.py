@@ -44,8 +44,16 @@ class ValueIterationAgent(ValueEstimationAgent):
         self.values = util.Counter() # A Counter is a dict with default 0
 
         # Write value iteration code here
-        "*** YOUR CODE HERE ***"
-
+        # TODO: "*** YOUR CODE HERE ***"
+        for _ in range(self.iterations):
+            temp_values = util.Counter() #WTF WHY THIS TOOK HOURS
+            for state in mdp.getStates():
+                max_value = float("-inf")
+                if not mdp.isTerminal(state):
+                    for action in mdp.getPossibleActions(state):
+                        max_value = max(self.computeQValueFromValues(state, action), max_value)
+                    temp_values[state] = max_value
+            self.values = temp_values
 
     def getValue(self, state):
         """
@@ -59,8 +67,11 @@ class ValueIterationAgent(ValueEstimationAgent):
           Compute the Q-value of action in state from the
           value function stored in self.values.
         """
-        "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        # TODO: "*** YOUR CODE HERE ***"
+        q_value = 0
+        for next_state, prob in self.mdp.getTransitionStatesAndProbs(state, action):
+            q_value += prob * (self.mdp.getReward(state, action, next_state) + self.discount * self.values[next_state])
+        return q_value
 
     def computeActionFromValues(self, state):
         """
@@ -71,8 +82,16 @@ class ValueIterationAgent(ValueEstimationAgent):
           there are no legal actions, which is the case at the
           terminal state, you should return None.
         """
-        "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        # TODO: "*** YOUR CODE HERE ***"
+        if self.mdp.isTerminal(state): 
+            return None
+        value, policy = float('-inf'), None
+        for action in self.mdp.getPossibleActions(state):
+            q_value = self.computeQValueFromValues(state, action)
+            if q_value > value:
+                value = q_value
+                policy = action
+        return policy
 
     def getPolicy(self, state):
         return self.computeActionFromValues(state)
