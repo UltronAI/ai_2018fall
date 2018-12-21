@@ -5,6 +5,8 @@ import numpy as np
 import argparse
 import skimage.io
 
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
 # Root directory of the project
 ROOT_DIR = os.path.abspath("../../")
 
@@ -62,14 +64,18 @@ def main():
     print("=> creating mask rcnn model")
     model = modellib.MaskRCNN(mode='inference', config=config, model_dir=args.log_dir)
     print("=> loading weights from {}".format(args.model))
-    model.load_weights(args.model)
+    model.load_weights(args.model, by_name=True)
 
     # TODO: implement the dataloader
     dataloader = None
     # for i, img in enumerate(dataloader):
-    img_path = 'test.png'
+    img_path = '1.png'
     img = skimage.io.imread(img_path)
     if img.shape[-1] == 4:
         img = img[..., :3]
     masks = model.detect([img], verbose=0)[0]['masks']
+    print(np.array(masks).shape)
+    #print(type(masks))
 
+if __name__ == '__main__':
+    main()
