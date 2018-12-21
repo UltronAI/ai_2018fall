@@ -89,6 +89,7 @@ def run_all():
 if not OUTPUT_DIR.endswith('/'):
     OUTPUT_DIR = OUTPUT_DIR + '/'
 
+# TODO: output the train.txt while processing.
 for d in glob.glob(INPUT_DIR + '/*/'):
     date = d.split('/')[-2]
     file_calibration = d + 'calib_cam_to_cam.txt'

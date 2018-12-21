@@ -133,7 +133,7 @@ def is_a_numpy_array(obj):
 
 
 def count_parameters(also_print=True):
-  """Cound the number of parameters in the model.
+  """Count the number of parameters in the model.
 
   Args:
     also_print: Boolean.  If True also print the numbers.
