@@ -4,6 +4,7 @@ import time
 import numpy as np
 import argparse
 import skimage.io
+from dataset import DataLoader
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
@@ -49,6 +50,16 @@ class InferenceConfig(KITTIConfig):
     IMAGES_PER_GPU = 1
     DETECTION_MIN_CONFIDENCE = 0
 
+def store_mask(mask, save_path):
+    height, width, object_num = mask.shape
+    img_mask = np.zeros((height, width, 1))
+    for i in range(object_num):
+        mask_i = mask[:, :, i].copy().astype(int) * (i + 1)
+        img_mask += mask_i
+        assert img_mask.max() <= object_num, "error occurred!"
+    import scipy.misc
+    scipy.misc.imsave(save_path, mask)
+
 def main():
     # prepare configure
     print("=> preparing configure for mask rcnn")
@@ -67,14 +78,16 @@ def main():
     model.load_weights(args.model, by_name=True)
 
     # TODO: implement the dataloader
-    dataloader = None
+    dataloader = DataLoader(args.dataset_dir)
     # for i, img in enumerate(dataloader):
-    img_path = '1.png'
-    img = skimage.io.imread(img_path)
-    if img.shape[-1] == 4:
-        img = img[..., :3]
-    masks = model.detect([img], verbose=0)[0]['masks']
-    print(np.array(masks).shape)
+    for img_path in dataloader.imglist:
+        print(img_path)
+        img = skimage.io.imread(img_path)
+        if img.shape[-1] == 4:
+            img = img[..., :3]
+        masks = model.detect([img], verbose=0)[0]['masks']
+        print(np.array(masks).shape)
+        exit(0)
     #print(type(masks))
 
 if __name__ == '__main__':
