@@ -47,7 +47,7 @@ import utils.image as image_utils
 import utils.keypoints as keypoint_utils
 
 
-def im_detect_all(model, im, box_proposals=None, timers=None):
+def im_detect_all(model, im, box_proposals=None, timers=None, only_mask=False):
     """Process the outputs of model for testing
     Args:
       model: the network module
@@ -86,6 +86,9 @@ def im_detect_all(model, im, box_proposals=None, timers=None):
         else:
             masks = im_detect_mask(model, im_scale, boxes, blob_conv)
         timers['im_detect_mask'].toc()
+
+        if only_mask:
+            return masks
 
         timers['misc_mask'].tic()
         cls_segms = segm_results(cls_boxes, masks, boxes, im.shape[0], im.shape[1])
