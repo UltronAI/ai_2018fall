@@ -23,7 +23,11 @@ parser.add_argument('--dataset-dir', type=str, required=True, default=None, meta
 parser.add_argument('--output-dir', type=str, required=True, default='output', metavar='/path/to/store/output/masks')
 parser.add_argument('--model', type=str, required=True, default='./mask_rcnn_balloon.h5', metavar='/path/to/pretrained/model')
 parser.add_argument('--log-dir', type=str, default='log', metavar='/path/to/log')
+parser.add_argument('-g', '--gpu-id', type=int, default=-1)
+
 args = parser.parse_args()
+if args.gpu_id >= 0:
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu_id)
 
 class KITTIConfig(Config):
     """Configuration for training on MS COCO.
@@ -38,27 +42,33 @@ class KITTIConfig(Config):
     IMAGES_PER_GPU = 2
 
     # Uncomment to train on 8 GPUs (default is 1)
-    # GPU_COUNT = 8
-
-    # Number of classes (including background)
-    NUM_CLASSES = 1 + 80  # COCO has 80 classes
+    GPU_COUNT = 1
+    NUM_CLASSES = 81
 
 class InferenceConfig(KITTIConfig):
     # Set batch size to 1 since we'll be running inference on
     # one image at a time. Batch size = GPU_COUNT * IMAGES_PER_GPU
     GPU_COUNT = 1
+    # BACKBONE = "resnet50"
     IMAGES_PER_GPU = 1
     DETECTION_MIN_CONFIDENCE = 0
 
 def store_mask(mask, save_path):
     height, width, object_num = mask.shape
-    img_mask = np.zeros((height, width, 1))
+    img_mask = np.zeros((height, width))
     for i in range(object_num):
         mask_i = mask[:, :, i].copy().astype(int) * (i + 1)
         img_mask += mask_i
-        assert img_mask.max() <= object_num, "error occurred!"
+        img_mask = np.clip(img_mask, 0, i + 1)
+        assert img_mask.max() <= object_num, "error occurred! {} should be less than {}".format(img_mask.max(), object_num)
     import scipy.misc
-    scipy.misc.imsave(save_path, mask)
+    #print(img_mask.max())
+    scipy.misc.imsave(save_path, img_mask)
+
+def makedir(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+    return path
 
 def main():
     # prepare configure
@@ -77,18 +87,36 @@ def main():
     print("=> loading weights from {}".format(args.model))
     model.load_weights(args.model, by_name=True)
 
-    # TODO: implement the dataloader
     dataloader = DataLoader(args.dataset_dir)
-    # for i, img in enumerate(dataloader):
-    for img_path in dataloader.imglist:
-        print(img_path)
-        img = skimage.io.imread(img_path)
+    # img = skimage.io.imread('/home/gaofeng/datasets/kitti/raw_data/2011_09_29/2011_09_29_drive_0004_sync/image_02/data/0000000141.png', plugin='matplotlib') * 255
+    # print(img.shape)
+    # masks = model.detect([img], verbose=0)[0]['masks']
+    # store_mask(masks, './test.png')
+    # print(masks.shape[-1])
+    # exit(0)
+    for date, seqname, folder, img_path in dataloader.read_raw_data():
+        img = skimage.io.imread(img_path, plugin='matplotlib') * 255
+        # print(img.shape)
+        #if seqname.split('_')[-2] != '0026':
+        #    continue
         if img.shape[-1] == 4:
             img = img[..., :3]
-        masks = model.detect([img], verbose=0)[0]['masks']
-        print(np.array(masks).shape)
-        exit(0)
-    #print(type(masks))
+        #print("processing {}".format(img_path.split('/')[-1]))
+        try:
+            masks = model.detect([img], verbose=0)[0]['masks']
+        except:
+            print(img_path)
+            print(img_path, file=open('output.log','a'))
+        #continue
+        #print(masks.shape[-1]) 
+        path_ = makedir(os.path.join(args.output_dir, date))
+        path_ = makedir(os.path.join(path_, seqname))
+        path_ = makedir(os.path.join(path_, folder))
+        path_ = makedir(os.path.join(path_, 'data'))
+        save_path = os.path.join(path_, img_path.split('/')[-1])
+        #print("storing")
+        store_mask(masks, save_path)
+        #print("done.")        
 
 if __name__ == '__main__':
     main()

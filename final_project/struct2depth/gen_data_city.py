@@ -33,8 +33,8 @@ SKIP = 2
 WIDTH = 416
 HEIGHT = 128
 SUB_FOLDER = 'train'
-INPUT_DIR = '/usr/local/google/home/anelia/struct2depth/CITYSCAPES_FULL/'
-OUTPUT_DIR = '/usr/local/google/home/anelia/struct2depth/CITYSCAPES_Processed/'
+INPUT_DIR = '/home/gaofeng/datasets/cityscapes/'
+OUTPUT_DIR = '/home/gaofeng/datasets/processed_data/cityscapes/'
 
 def crop(img, segimg, fx, fy, cx, cy):
     # Perform center cropping, preserving 50% vertically.

@@ -27,8 +27,14 @@ from mrcnn import utils
 
 # Requires TensorFlow 1.3+ and Keras 2.0.8+.
 from distutils.version import LooseVersion
+from keras.backend.tensorflow_backend import set_session
 assert LooseVersion(tf.__version__) >= LooseVersion("1.3")
 assert LooseVersion(keras.__version__) >= LooseVersion('2.0.8')
+
+tfconfig = tf.ConfigProto()
+tfconfig.gpu_options.allow_growth = True
+session = tf.Session(config = tfconfig)
+set_session(session)
 
 
 ############################################################
@@ -2462,6 +2468,11 @@ class MaskRCNN():
         # network weights are still random
         exclude_ix = np.where(
             (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1]) <= 0)[0]
+        
+        exclude_ix2 = np.where((boxes[:, 2] - boxes[:, 0])<=0)[0]
+        exclude_ix = np.append(exclude_ix, exclude_ix2)
+        exclude_ix = np.unique(exclude_ix)        
+
         if exclude_ix.shape[0] > 0:
             boxes = np.delete(boxes, exclude_ix, axis=0)
             class_ids = np.delete(class_ids, exclude_ix, axis=0)

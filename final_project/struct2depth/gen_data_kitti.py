@@ -33,8 +33,8 @@ SEQ_LENGTH = 3
 WIDTH = 416
 HEIGHT = 128
 STEPSIZE = 1
-INPUT_DIR = '/usr/local/google/home/anelia/struct2depth/KITTI_FULL/kitti-raw-uncompressed'
-OUTPUT_DIR = '/usr/local/google/home/anelia/struct2depth/KITTI_procesed/'
+INPUT_DIR = '/home/gaofeng/datasets/kitti/raw_data'
+OUTPUT_DIR = '/home/gaofeng/datasets/processed_data/kitti/'
 
 
 def get_line(file, start):
