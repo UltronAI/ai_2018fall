@@ -35,6 +35,8 @@ import nets
 import reader
 import util
 
+tf.logging.set_verbosity(tf.logging.ERROR)
+
 gfile = tf.gfile
 MAX_TO_KEEP = 1000000  # Maximum number of checkpoints to keep.
 
@@ -49,7 +51,7 @@ flags.DEFINE_float('icp_weight', 0.0, 'ICP loss weight.')
 flags.DEFINE_float('size_constraint_weight', 0.0005, 'Weight of the object '
          'size constraint loss. Use only when motion handling is '
          'enabled.')
-flags.DEFINE_integer('batch_size', 4, 'The size of a sample batch')
+flags.DEFINE_integer('batch_size', 1, 'The size of a sample batch')
 flags.DEFINE_integer('img_height', 128, 'Input frame height.')
 flags.DEFINE_integer('img_width', 416, 'Input frame width.')
 flags.DEFINE_integer('seq_length', 3, 'Number of frames in sequence.')
@@ -57,7 +59,7 @@ flags.DEFINE_enum('architecture', nets.RESNET, nets.ARCHITECTURES,
         'Defines the architecture to use for the depth prediction '
         'network. Defaults to ResNet-based encoder and accompanying '
         'decoder.')
-flags.DEFINE_boolean('imagenet_norm', True, 'Whether to normalize the input '
+flags.DEFINE_boolean('imagenet_norm', False, 'Whether to normalize the input '
              'images channel-wise so that they match the distribution '
              'most ImageNet-models were trained on.')
 flags.DEFINE_float('weight_reg', 0.05, 'The amount of weight regularization to '
