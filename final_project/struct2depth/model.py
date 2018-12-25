@@ -190,8 +190,8 @@ class Model(object):
                 self.cloud = {}
             for i in range(self.seq_length):
                 image = self.image_stack_norm[:, :, :, 3 * i:3 * (i + 1)]
-
-                multiscale_disps_i, disp_bottlenecks[i] = nets.disp_net(
+                with tf.device('/gpu:1'):
+                    multiscale_disps_i, disp_bottlenecks[i] = nets.disp_net(
                         self.architecture, image, self.use_skip,
                         self.weight_reg, True)
                 multiscale_depths_i = [1.0 / d for d in multiscale_disps_i]
@@ -236,7 +236,8 @@ class Model(object):
                 # Now mask out base_input.
                 self.mask_complete = tf.to_float(mask_complete)
                 self.base_input_masked = base_input * self.mask_complete
-                self.egomotion = nets.egomotion_net(
+                with tf.device('/gpu:1'):
+                    self.egomotion = nets.egomotion_net(
                         image_stack=self.base_input_masked,
                         disp_bottleneck_stack=None,
                         joint_encoder=False,
@@ -381,7 +382,8 @@ class Model(object):
                         mask_stack = tf.concat(mask_stack, axis=3)  # (N, H, W, 9)
                         mask_stack_warped = tf.concat(mask_stack_warped, axis=3)
                         color_stack = tf.concat(color_stack, axis=3)  # (N, H, W, 9)
-                        all_transforms = nets.objectmotion_net(
+                        with tf.device('/gpu:1'):
+                            all_transforms = nets.objectmotion_net(
                                 # We cut the gradient flow here as the object motion gradient
                                 # should have no saying in how the egomotion network behaves.
                                 # One could try just stopping the gradient for egomotion, but
@@ -407,7 +409,8 @@ class Model(object):
                     disp_bottleneck_stack = tf.concat(disp_bottlenecks, axis=3)
                 else:
                     disp_bottleneck_stack = None
-                self.egomotion = nets.egomotion_net(
+                with tf.device('/gpu:1'):
+                    self.egomotion = nets.egomotion_net(
                         image_stack=self.image_stack_norm,
                         disp_bottleneck_stack=disp_bottleneck_stack,
                         joint_encoder=self.joint_encoder,
@@ -657,7 +660,7 @@ class Model(object):
     def build_train_op(self):
         with tf.name_scope('train_op'):
             optim = tf.train.AdamOptimizer(self.learning_rate, self.beta1)
-            self.train_op = slim.learning.create_train_op(self.total_loss, optim)
+            self.train_op = slim.learning.create_train_op(self.total_loss, optim, colocate_gradients_with_ops=True)
             self.global_step = tf.Variable(0, name='global_step', trainable=False)
             self.incr_global_step = tf.assign(
                     self.global_step, self.global_step + 1)
