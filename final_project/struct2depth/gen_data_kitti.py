@@ -85,7 +85,7 @@ def crop(img, segimg, fx, fy, cx, cy):
 
 
 def run_all():
-  ct = 0
+    ct = 0
 if not OUTPUT_DIR.endswith('/'):
     OUTPUT_DIR = OUTPUT_DIR + '/'
 

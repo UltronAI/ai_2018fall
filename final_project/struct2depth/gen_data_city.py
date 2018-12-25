@@ -68,18 +68,18 @@ def crop(img, segimg, fx, fy, cx, cy):
 
 
 def run_all():
-  dir_name=INPUT_DIR + '/leftImg8bit_sequence/' + SUB_FOLDER + '/*'
-  print('Processing directory', dir_name)
-  for location in glob.glob(INPUT_DIR + '/leftImg8bit_sequence/' + SUB_FOLDER + '/*'):
-    location_name = os.path.basename(location)
-    print('Processing location', location_name)
-    files = sorted(glob.glob(location + '/*.png'))
-    files = [file for file in files if '-seg.png' not in file]
-    # Break down into sequences
-    sequences = {}
-    seq_nr = 0
-    last_seq = ''
-    last_imgnr = -1
+    dir_name=INPUT_DIR + '/leftImg8bit_sequence/' + SUB_FOLDER + '/*'
+    print('Processing directory', dir_name)
+    for location in glob.glob(INPUT_DIR + '/leftImg8bit_sequence/' + SUB_FOLDER + '/*'):
+        location_name = os.path.basename(location)
+        print('Processing location', location_name)
+        files = sorted(glob.glob(location + '/*.png'))
+        files = [file for file in files if '-seg.png' not in file]
+        # Break down into sequences
+        sequences = {}
+        seq_nr = 0
+        last_seq = ''
+        last_imgnr = -1
 
     for i in range(len(files)):
         seq = os.path.basename(files[i]).split('_')[1]
@@ -151,8 +151,8 @@ fn.close()
 
 
 def main(_):
-  run_all()
+    run_all()
 
 
 if __name__ == '__main__':
-  app.run(main)
+    app.run(main)
