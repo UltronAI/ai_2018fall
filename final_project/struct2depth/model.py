@@ -168,10 +168,8 @@ class Model(object):
     def build_train_graph(self):
         with tf.device('/gpu:0'):
             self.build_inference_for_training()
-        with tf.device('/gpu:1'):
-            self.build_loss()
-        with tf.device('/gpu:0'):
-            self.build_train_op()
+        self.build_loss()
+        self.build_train_op()
         if self.build_sum:
             self.build_summaries()
 
@@ -439,176 +437,177 @@ class Model(object):
 
             # Compute losses at each scale.
             for s in range(NUM_SCALES):
-                # Scale image stack.
-                if s == 0:  # Just as a precaution. TF often has interpolation bugs.
-                    self.images[s] = self.image_stack
-                else:
-                    height_s = int(self.img_height / (2**s))
-                    width_s = int(self.img_width / (2**s))
-                    self.images[s] = tf.image.resize_bilinear(
-                            self.image_stack, [height_s, width_s], align_corners=True)
+                with tf.device('/gpu:{}'.format(int(s%2))):
+                    # Scale image stack.
+                    if s == 0:  # Just as a precaution. TF often has interpolation bugs.
+                        self.images[s] = self.image_stack
+                    else:
+                        height_s = int(self.img_height / (2**s))
+                        width_s = int(self.img_width / (2**s))
+                        self.images[s] = tf.image.resize_bilinear(
+                                self.image_stack, [height_s, width_s], align_corners=True)
 
-                # Smoothness.
-                if self.smooth_weight > 0:
+                    # Smoothness.
+                    if self.smooth_weight > 0:
+                        for i in range(self.seq_length):
+                            # When computing minimum loss, use the depth map from the middle
+                            # frame only.
+                            if not self.compute_minimum_loss or i == self.middle_frame_index:
+                                disp_smoothing = self.disp[i][s]
+                                if self.depth_normalization:
+                                    # Perform depth normalization, dividing by the mean.
+                                    mean_disp = tf.reduce_mean(disp_smoothing, axis=[1, 2, 3],
+                                                                                        keep_dims=True)
+                                    disp_input = disp_smoothing / mean_disp
+                                else:
+                                    disp_input = disp_smoothing
+                                scaling_f = (1.0 if self.equal_weighting else 1.0 / (2**s))
+                                self.smooth_loss += scaling_f * self.depth_smoothness(
+                                        disp_input, self.images[s][:, :, :, 3 * i:3 * (i + 1)])
+
+                    self.debug_all_warped_image_batches = []
                     for i in range(self.seq_length):
-                        # When computing minimum loss, use the depth map from the middle
-                        # frame only.
-                        if not self.compute_minimum_loss or i == self.middle_frame_index:
-                            disp_smoothing = self.disp[i][s]
-                            if self.depth_normalization:
-                                # Perform depth normalization, dividing by the mean.
-                                mean_disp = tf.reduce_mean(disp_smoothing, axis=[1, 2, 3],
-                                                                                     keep_dims=True)
-                                disp_input = disp_smoothing / mean_disp
+                        for j in range(self.seq_length):
+                            if i == j:
+                                continue
+
+                            # When computing minimum loss, only consider the middle frame as
+                            # target.
+                            if self.compute_minimum_loss and j != self.middle_frame_index:
+                                continue
+                            # We only consider adjacent frames, unless either
+                            # compute_minimum_loss is on (where the middle frame is matched with
+                            # all other frames) or exhaustive_mode is on (where all frames are
+                            # matched with each other).
+                            if (not self.compute_minimum_loss and not self.exhaustive_mode and
+                                    abs(i - j) != 1):
+                                continue
+
+                            selected_scale = 0 if self.depth_upsampling else s
+                            source = self.images[selected_scale][:, :, :, 3 * i:3 * (i + 1)]
+                            target = self.images[selected_scale][:, :, :, 3 * j:3 * (j + 1)]
+
+                            if self.depth_upsampling:
+                                target_depth = self.depth_upsampled[j][s]
                             else:
-                                disp_input = disp_smoothing
-                            scaling_f = (1.0 if self.equal_weighting else 1.0 / (2**s))
-                            self.smooth_loss += scaling_f * self.depth_smoothness(
-                                    disp_input, self.images[s][:, :, :, 3 * i:3 * (i + 1)])
+                                target_depth = self.depth[j][s]
 
-                self.debug_all_warped_image_batches = []
-                for i in range(self.seq_length):
-                    for j in range(self.seq_length):
-                        if i == j:
-                            continue
+                            key = '%d-%d' % (i, j)
 
-                        # When computing minimum loss, only consider the middle frame as
-                        # target.
-                        if self.compute_minimum_loss and j != self.middle_frame_index:
-                            continue
-                        # We only consider adjacent frames, unless either
-                        # compute_minimum_loss is on (where the middle frame is matched with
-                        # all other frames) or exhaustive_mode is on (where all frames are
-                        # matched with each other).
-                        if (not self.compute_minimum_loss and not self.exhaustive_mode and
-                                abs(i - j) != 1):
-                            continue
+                            if self.handle_motion:
+                                # self.seg_stack of shape (B, H, W, 9).
+                                # target_depth corresponds to middle frame, of shape (B, H, W, 1).
 
-                        selected_scale = 0 if self.depth_upsampling else s
-                        source = self.images[selected_scale][:, :, :, 3 * i:3 * (i + 1)]
-                        target = self.images[selected_scale][:, :, :, 3 * j:3 * (j + 1)]
+                                # Now incorporate the other warping results, performed according
+                                # to the object motion network's predictions.
+                                # self.object_masks batch_size elements of (N, H, W, 9).
+                                # self.object_masks_warped batch_size elements of (N, H, W, 9).
+                                # self.object_transforms batch_size elements of (N, 2, 6).
+                                self.all_batches = []
+                                for batch_s in range(self.batch_size):
+                                    # To warp i into j, first take the base warping (this is the
+                                    # full image i warped into j using only the egomotion estimate).
+                                    base_warping = self.warped_seq[s][i][batch_s]
+                                    transform_matrices_thisbatch = tf.map_fn(
+                                            lambda transform: project.get_transform_mat(
+                                                    tf.expand_dims(transform, axis=0), i, j)[0],
+                                            self.object_transforms[0][batch_s])
 
-                        if self.depth_upsampling:
-                            target_depth = self.depth_upsampled[j][s]
-                        else:
-                            target_depth = self.depth[j][s]
+                                    def inverse_warp_wrapper(matrix):
+                                        """Wrapper for inverse warping method."""
+                                        warp_image, _ = (
+                                                project.inverse_warp(
+                                                        tf.expand_dims(base_warping, axis=0),
+                                                        tf.expand_dims(target_depth[batch_s], axis=0),
+                                                        tf.expand_dims(matrix, axis=0),
+                                                        tf.expand_dims(self.intrinsic_mat[
+                                                                batch_s, selected_scale, :, :], axis=0),
+                                                        tf.expand_dims(self.intrinsic_mat_inv[
+                                                                batch_s, selected_scale, :, :], axis=0)))
+                                        return warp_image
+                                    warped_images_thisbatch = tf.map_fn(
+                                            inverse_warp_wrapper, transform_matrices_thisbatch,
+                                            dtype=tf.float32)
+                                    warped_images_thisbatch = warped_images_thisbatch[:, 0, :, :, :]
+                                    # warped_images_thisbatch is now of shape (N, H, W, 9).
 
-                        key = '%d-%d' % (i, j)
+                                    # Combine warped frames into a single one, using the object
+                                    # masks. Result should be (1, 128, 416, 3).
+                                    # Essentially, we here want to sum them all up, filtered by the
+                                    # respective object masks.
+                                    mask_base_valid_source = tf.equal(
+                                            self.seg_stack[batch_s, :, :, i*3:(i+1)*3],
+                                            tf.constant(0, dtype=tf.uint8))
+                                    mask_base_valid_target = tf.equal(
+                                            self.seg_stack[batch_s, :, :, j*3:(j+1)*3],
+                                            tf.constant(0, dtype=tf.uint8))
+                                    mask_valid = tf.logical_and(
+                                            mask_base_valid_source, mask_base_valid_target)
+                                    self.base_warping = base_warping * tf.to_float(mask_valid)
+                                    background = tf.expand_dims(self.base_warping, axis=0)
+                                    def construct_const_filter_tensor(obj_id):
+                                        return tf.fill(
+                                                dims=[self.img_height, self.img_width, 3],
+                                                value=tf.sign(obj_id)) * tf.to_float(
+                                                        tf.equal(self.seg_stack[batch_s, :, :, 3:6],
+                                                                        tf.cast(obj_id, dtype=tf.uint8)))
+                                    filter_tensor = tf.map_fn(
+                                            construct_const_filter_tensor,
+                                            tf.to_float(self.object_ids[s][batch_s]))
+                                    filter_tensor = tf.stack(filter_tensor, axis=0)
+                                    objects_to_add = tf.reduce_sum(
+                                            tf.multiply(warped_images_thisbatch, filter_tensor),
+                                            axis=0, keepdims=True)
+                                    combined = background + objects_to_add
+                                    self.all_batches.append(combined)
+                                # Now of shape (B, 128, 416, 3).
+                                self.warped_image[s][key] = tf.concat(self.all_batches, axis=0)
 
-                        if self.handle_motion:
-                            # self.seg_stack of shape (B, H, W, 9).
-                            # target_depth corresponds to middle frame, of shape (B, H, W, 1).
+                            else:
+                                # Don't handle motion, classic model formulation.
+                                egomotion_mat_i_j = project.get_transform_mat(
+                                        self.egomotion, i, j)
+                                # Inverse warp the source image to the target image frame for
+                                # photometric consistency loss.
+                                self.warped_image[s][key], self.warp_mask[s][key] = (
+                                        project.inverse_warp(
+                                                source,
+                                                target_depth,
+                                                egomotion_mat_i_j,
+                                                self.intrinsic_mat[:, selected_scale, :, :],
+                                                self.intrinsic_mat_inv[:, selected_scale, :, :]))
 
-                            # Now incorporate the other warping results, performed according
-                            # to the object motion network's predictions.
-                            # self.object_masks batch_size elements of (N, H, W, 9).
-                            # self.object_masks_warped batch_size elements of (N, H, W, 9).
-                            # self.object_transforms batch_size elements of (N, 2, 6).
-                            self.all_batches = []
-                            for batch_s in range(self.batch_size):
-                                # To warp i into j, first take the base warping (this is the
-                                # full image i warped into j using only the egomotion estimate).
-                                base_warping = self.warped_seq[s][i][batch_s]
-                                transform_matrices_thisbatch = tf.map_fn(
-                                        lambda transform: project.get_transform_mat(
-                                                tf.expand_dims(transform, axis=0), i, j)[0],
-                                        self.object_transforms[0][batch_s])
-
-                                def inverse_warp_wrapper(matrix):
-                                    """Wrapper for inverse warping method."""
-                                    warp_image, _ = (
-                                            project.inverse_warp(
-                                                    tf.expand_dims(base_warping, axis=0),
-                                                    tf.expand_dims(target_depth[batch_s], axis=0),
-                                                    tf.expand_dims(matrix, axis=0),
-                                                    tf.expand_dims(self.intrinsic_mat[
-                                                            batch_s, selected_scale, :, :], axis=0),
-                                                    tf.expand_dims(self.intrinsic_mat_inv[
-                                                            batch_s, selected_scale, :, :], axis=0)))
-                                    return warp_image
-                                warped_images_thisbatch = tf.map_fn(
-                                        inverse_warp_wrapper, transform_matrices_thisbatch,
-                                        dtype=tf.float32)
-                                warped_images_thisbatch = warped_images_thisbatch[:, 0, :, :, :]
-                                # warped_images_thisbatch is now of shape (N, H, W, 9).
-
-                                # Combine warped frames into a single one, using the object
-                                # masks. Result should be (1, 128, 416, 3).
-                                # Essentially, we here want to sum them all up, filtered by the
-                                # respective object masks.
-                                mask_base_valid_source = tf.equal(
-                                        self.seg_stack[batch_s, :, :, i*3:(i+1)*3],
-                                        tf.constant(0, dtype=tf.uint8))
-                                mask_base_valid_target = tf.equal(
-                                        self.seg_stack[batch_s, :, :, j*3:(j+1)*3],
-                                        tf.constant(0, dtype=tf.uint8))
-                                mask_valid = tf.logical_and(
-                                        mask_base_valid_source, mask_base_valid_target)
-                                self.base_warping = base_warping * tf.to_float(mask_valid)
-                                background = tf.expand_dims(self.base_warping, axis=0)
-                                def construct_const_filter_tensor(obj_id):
-                                    return tf.fill(
-                                            dims=[self.img_height, self.img_width, 3],
-                                            value=tf.sign(obj_id)) * tf.to_float(
-                                                    tf.equal(self.seg_stack[batch_s, :, :, 3:6],
-                                                                     tf.cast(obj_id, dtype=tf.uint8)))
-                                filter_tensor = tf.map_fn(
-                                        construct_const_filter_tensor,
-                                        tf.to_float(self.object_ids[s][batch_s]))
-                                filter_tensor = tf.stack(filter_tensor, axis=0)
-                                objects_to_add = tf.reduce_sum(
-                                        tf.multiply(warped_images_thisbatch, filter_tensor),
-                                        axis=0, keepdims=True)
-                                combined = background + objects_to_add
-                                self.all_batches.append(combined)
-                             # Now of shape (B, 128, 416, 3).
-                            self.warped_image[s][key] = tf.concat(self.all_batches, axis=0)
-
-                        else:
-                            # Don't handle motion, classic model formulation.
-                            egomotion_mat_i_j = project.get_transform_mat(
-                                    self.egomotion, i, j)
-                            # Inverse warp the source image to the target image frame for
-                            # photometric consistency loss.
-                            self.warped_image[s][key], self.warp_mask[s][key] = (
-                                    project.inverse_warp(
-                                            source,
-                                            target_depth,
-                                            egomotion_mat_i_j,
-                                            self.intrinsic_mat[:, selected_scale, :, :],
-                                            self.intrinsic_mat_inv[:, selected_scale, :, :]))
-
-                        # Reconstruction loss.
-                        self.warp_error[s][key] = tf.abs(self.warped_image[s][key] - target)
-                        if not self.compute_minimum_loss:
-                            self.reconstr_loss += tf.reduce_mean(
-                                    self.warp_error[s][key] * self.warp_mask[s][key])
-                        # SSIM.
-                        if self.ssim_weight > 0:
-                            self.ssim_error[s][key] = self.ssim(self.warped_image[s][key],
-                                                                                                    target)
-                            # TODO(rezama): This should be min_pool2d().
+                            # Reconstruction loss.
+                            self.warp_error[s][key] = tf.abs(self.warped_image[s][key] - target)
                             if not self.compute_minimum_loss:
-                                ssim_mask = slim.avg_pool2d(self.warp_mask[s][key], 3, 1,
-                                                                                        'VALID')
-                                self.ssim_loss += tf.reduce_mean(
-                                        self.ssim_error[s][key] * ssim_mask)
+                                self.reconstr_loss += tf.reduce_mean(
+                                        self.warp_error[s][key] * self.warp_mask[s][key])
+                            # SSIM.
+                            if self.ssim_weight > 0:
+                                self.ssim_error[s][key] = self.ssim(self.warped_image[s][key],
+                                                                                                        target)
+                                # TODO(rezama): This should be min_pool2d().
+                                if not self.compute_minimum_loss:
+                                    ssim_mask = slim.avg_pool2d(self.warp_mask[s][key], 3, 1,
+                                                                                            'VALID')
+                                    self.ssim_loss += tf.reduce_mean(
+                                            self.ssim_error[s][key] * ssim_mask)
 
-                # If the minimum loss should be computed, the loss calculation has been
-                # postponed until here.
-                if self.compute_minimum_loss:
-                    for frame_index in range(self.middle_frame_index):
-                        key1 = '%d-%d' % (frame_index, self.middle_frame_index)
-                        key2 = '%d-%d' % (self.seq_length - frame_index - 1,
-                                                            self.middle_frame_index)
-                        logging.info('computing min error between %s and %s', key1, key2)
-                        min_error = tf.minimum(self.warp_error[s][key1],
-                                                                     self.warp_error[s][key2])
-                        self.reconstr_loss += tf.reduce_mean(min_error)
-                        if self.ssim_weight > 0:  # Also compute the minimum SSIM loss.
-                            min_error_ssim = tf.minimum(self.ssim_error[s][key1],
-                                                                                    self.ssim_error[s][key2])
-                            self.ssim_loss += tf.reduce_mean(min_error_ssim)
+                    # If the minimum loss should be computed, the loss calculation has been
+                    # postponed until here.
+                    if self.compute_minimum_loss:
+                        for frame_index in range(self.middle_frame_index):
+                            key1 = '%d-%d' % (frame_index, self.middle_frame_index)
+                            key2 = '%d-%d' % (self.seq_length - frame_index - 1,
+                                                                self.middle_frame_index)
+                            logging.info('computing min error between %s and %s', key1, key2)
+                            min_error = tf.minimum(self.warp_error[s][key1],
+                                                                        self.warp_error[s][key2])
+                            self.reconstr_loss += tf.reduce_mean(min_error)
+                            if self.ssim_weight > 0:  # Also compute the minimum SSIM loss.
+                                min_error_ssim = tf.minimum(self.ssim_error[s][key1],
+                                                                                        self.ssim_error[s][key2])
+                                self.ssim_loss += tf.reduce_mean(min_error_ssim)
 
             # Build the total loss as composed of L1 reconstruction, SSIM, smoothing
             # and object size constraint loss as appropriate.
