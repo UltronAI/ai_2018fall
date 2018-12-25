@@ -205,7 +205,7 @@ def train(train_model, pretrained_ckpt, imagenet_ckpt, checkpoint_dir,
     saver = tf.train.Saver(vars_to_save, max_to_keep=MAX_TO_KEEP)
     sv = tf.train.Supervisor(logdir=checkpoint_dir, save_summaries_secs=0,
                          saver=None)
-    config = tf.ConfigProto()
+    config = tf.ConfigProto(allow_soft_placement=True, log_device_placement=False)
     config.gpu_options.allow_growth = True
     with sv.managed_session(config=config) as sess:
         if pretrained_ckpt is not None or imagenet_ckpt:
