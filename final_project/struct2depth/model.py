@@ -146,15 +146,15 @@ class Model(object):
 
         if self.is_training:
             self.reader = reader.DataReader(self.data_dir, self.batch_size,
-                                                                            self.img_height, self.img_width,
-                                                                            self.seq_length, NUM_SCALES,
-                                                                            self.file_extension,
-                                                                            self.random_scale_crop,
-                                                                            self.flipping_mode,
-                                                                            self.random_color,
-                                                                            self.imagenet_norm,
-                                                                            self.shuffle,
-                                                                            self.input_file)
+                                            self.img_height, self.img_width,
+                                            self.seq_length, NUM_SCALES,
+                                            self.file_extension,
+                                            self.random_scale_crop,
+                                            self.flipping_mode,
+                                            self.random_color,
+                                            self.imagenet_norm,
+                                            self.shuffle,
+                                            self.input_file)
             self.build_train_graph()
         else:
             self.build_depth_test_graph()
@@ -209,8 +209,8 @@ class Model(object):
                 if self.icp_weight > 0:
                     multiscale_clouds_i = [
                             project.get_cloud(d,
-                                                                self.intrinsic_mat_inv[:, s, :, :],
-                                                                name='cloud%d_%d' % (s, i))
+                                            self.intrinsic_mat_inv[:, s, :, :],
+                                            name='cloud%d_%d' % (s, i))
                             for (s, d) in enumerate(multiscale_depths_i)
                     ]
                     self.cloud[i] = multiscale_clouds_i
