@@ -166,9 +166,12 @@ class Model(object):
         util.count_parameters()
 
     def build_train_graph(self):
-        self.build_inference_for_training()
-        self.build_loss()
-        self.build_train_op()
+        with tf.device('/gpu:0'):
+            self.build_inference_for_training()
+        with tf.device('/gpu:1'):
+            self.build_loss()
+        with tf.device('/gpu:0'):
+            self.build_train_op()
         if self.build_sum:
             self.build_summaries()
 
@@ -190,8 +193,7 @@ class Model(object):
                 self.cloud = {}
             for i in range(self.seq_length):
                 image = self.image_stack_norm[:, :, :, 3 * i:3 * (i + 1)]
-                with tf.device('/gpu:1'):
-                    multiscale_disps_i, disp_bottlenecks[i] = nets.disp_net(
+                multiscale_disps_i, disp_bottlenecks[i] = nets.disp_net(
                         self.architecture, image, self.use_skip,
                         self.weight_reg, True)
                 multiscale_depths_i = [1.0 / d for d in multiscale_disps_i]
@@ -236,8 +238,7 @@ class Model(object):
                 # Now mask out base_input.
                 self.mask_complete = tf.to_float(mask_complete)
                 self.base_input_masked = base_input * self.mask_complete
-                with tf.device('/gpu:1'):
-                    self.egomotion = nets.egomotion_net(
+                self.egomotion = nets.egomotion_net(
                         image_stack=self.base_input_masked,
                         disp_bottleneck_stack=None,
                         joint_encoder=False,
@@ -382,8 +383,7 @@ class Model(object):
                         mask_stack = tf.concat(mask_stack, axis=3)  # (N, H, W, 9)
                         mask_stack_warped = tf.concat(mask_stack_warped, axis=3)
                         color_stack = tf.concat(color_stack, axis=3)  # (N, H, W, 9)
-                        with tf.device('/gpu:1'):
-                            all_transforms = nets.objectmotion_net(
+                        all_transforms = nets.objectmotion_net(
                                 # We cut the gradient flow here as the object motion gradient
                                 # should have no saying in how the egomotion network behaves.
                                 # One could try just stopping the gradient for egomotion, but
@@ -409,8 +409,7 @@ class Model(object):
                     disp_bottleneck_stack = tf.concat(disp_bottlenecks, axis=3)
                 else:
                     disp_bottleneck_stack = None
-                with tf.device('/gpu:1'):
-                    self.egomotion = nets.egomotion_net(
+                self.egomotion = nets.egomotion_net(
                         image_stack=self.image_stack_norm,
                         disp_bottleneck_stack=disp_bottleneck_stack,
                         joint_encoder=self.joint_encoder,
