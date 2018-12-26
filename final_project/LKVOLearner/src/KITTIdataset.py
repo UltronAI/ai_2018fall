@@ -7,7 +7,7 @@ import os
 
 class KITTIdataset(Dataset):
     """KITTIdataset"""
-    def __init__(self, list_file='train.txt', data_root_path='/home/chaoyang/LKVOLearner/data_kitti', img_size=[128, 416], bundle_size=3):
+    def __init__(self, list_file='train.txt', data_root_path='/home/gaofeng/datasets/processed_data/kitti/', img_size=[128, 416], bundle_size=3):
         self.data_root_path = data_root_path
         self.img_size = img_size
         self.bundle_size = bundle_size
@@ -21,7 +21,7 @@ class KITTIdataset(Dataset):
                 if seq_path in ['2011_09_26_drive_0119_sync_02', '2011_09_28_drive_0225_sync_02',
                                 '2011_09_29_drive_0108_sync_02', '2011_09_30_drive_0072_sync_02',
                                 '2011_10_03_drive_0058_sync_02', '2011_09_29_drive_0108_sync_03']:
-                    print(seq_path)
+                    # print(seq_path)
                     continue
                 frame_path = os.path.join(seq_path, frame_name)
                 self.frame_pathes.append(frame_path)
@@ -41,7 +41,7 @@ class KITTIdataset(Dataset):
         camparams = np.asarray(cam_intrinsics)
 
         # read image bundle
-        img_file = os.path.join(self.data_root_path, self.frame_pathes[item]+'.jpg')
+        img_file = os.path.join(self.data_root_path, self.frame_pathes[item]+'.png')
         frames_cat = np.array(Image.open(img_file))
         # slice the image into #bundle_size number of images
         frame_list = []
