@@ -11,6 +11,7 @@ import itertools
 from timeit import default_timer as timer
 
 class FlipLR(nn.Module):
+    # flip between left and right
     def __init__(self, imW, dim_w):
         super(FlipLR, self).__init__()
         inv_indices = torch.arange(imW-1, -1, -1).long()
@@ -83,7 +84,7 @@ class SfMKernel(nn.Module):
 
     def forward(self, frames, camparams, ref_frame_idx, lambda_S=.5, lambda_E=.01, do_data_augment=True, use_ssim=True):
         assert(frames.size(0) == 1 and frames.dim() == 5)
-        frames = frames.squeeze(0)
+        frames = frames.squeeze(0) # (3, 3, 128, 416)
         camparams = camparams.squeeze(0).data
 
 

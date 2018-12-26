@@ -47,7 +47,7 @@ class KITTIdataset(Dataset):
         frame_list = []
         for i in range(self.bundle_size):
             frame_list.append(frames_cat[:,i*self.img_size[1]:(i+1)*self.img_size[1],:])
-        frames = np.asarray(frame_list).astype(float).transpose(0, 3, 1, 2)
+        frames = np.asarray(frame_list).astype(float).transpose(0, 3, 1, 2) # (3,3,128,416)
 
         return frames, camparams
 
