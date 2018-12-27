@@ -10,6 +10,7 @@ import os
 
 from LKVOLearner import LKVOLearner
 from KITTIdataset import KITTIdataset
+from tqdm import tqdm
 
 from collections import OrderedDict
 from options.train_options import TrainOptions
@@ -44,7 +45,9 @@ def vis_depthmap(input):
     x = (input-input.min()) * (255/(input.max()-input.min()+.00001))
     return x.unsqueeze(2).repeat(1, 1, 3)
 
-optimizer = optim.Adam(lkvolearner.get_parameters(), lr=.0001)
+optimizer = optim.Adam(lkvolearner.get_parameters(), lr=opt.lr,
+                       betas=(opt.momentum, opt.beta),
+                       weight_decay=opt.weight_decay)
 step_num = 0
 
 for epoch in range(max(0, opt.which_epoch), opt.epoch_num+1):
